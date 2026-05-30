@@ -1,0 +1,391 @@
+{
+  "name": "AI Lead Generation Bot — Real Estate",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🤖 AI Lead Generation Bot — Real Estate\n\n### Як це працює:\n1. Відправ боту домен компанії (напр. `example.com`)\n2. Firecrawl скрапить сайт\n3. GPT-4o аналізує контент і генерує cold email\n4. Результат зберігається в Google Sheets\n5. Бот відправляє тобі сповіщення\n\n### Налаштування:\n- Створи Credentials для Telegram, Firecrawl, OpenAI та Google Sheets\n- Заміни `YOUR_GOOGLE_SHEET_ID` в ноді 'Save to Google Sheets'\n- Створи Google Sheet з колонками: Дата | Компанія | Домен | Сфера | Сервіс | Біль | Email | Тема | Лист",
+        "height": 340,
+        "width": 520,
+        "color": 5
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000001",
+      "name": "📋 Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-80, -60]
+    },
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000010",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 380],
+      "webhookId": "lead-gen-bot-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════\n// Extract & Validate Domain from Telegram message\n// ═══════════════════════════════════════════\n\nconst message = $input.item.json.message?.text || '';\nlet input = message.trim();\n\n// Remove bot command prefix if present\nif (input.startsWith('/lead')) {\n  input = input.replace(/^\\/lead\\s*/, '').trim();\n}\nif (input.startsWith('/start')) {\n  return {\n    json: {\n      error: true,\n      chatId: $input.item.json.message.chat.id,\n      errorMessage: '👋 Привіт! Відправ мені домен компанії (наприклад: example.com) і я згенерую персоналізований cold email для неї.'\n    }\n  };\n}\n\nlet domain = input;\n\n// Remove protocol\ndomain = domain.replace(/^(https?:\\/\\/)?(www\\.)?/i, '');\n// Remove path, query, fragment\ndomain = domain.split('/')[0].split('?')[0].split('#')[0];\n// Remove trailing dots\ndomain = domain.replace(/\\.+$/, '');\n\n// Basic validation\nif (!domain || !domain.includes('.') || domain.length < 4) {\n  return {\n    json: {\n      error: true,\n      chatId: $input.item.json.message.chat.id,\n      errorMessage: `❌ Невалідний домен: \"${message}\"\\n\\n📝 Відправ домен у форматі: example.com`\n    }\n  };\n}\n\nconst chatId = $input.item.json.message.chat.id;\n\nreturn {\n  json: {\n    error: false,\n    domain: domain.toLowerCase(),\n    url: `https://${domain.toLowerCase()}`,\n    chatId: chatId,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000020",
+      "name": "Extract Domain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-valid",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000025",
+      "name": "Is Valid Domain?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [520, 380]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.errorMessage }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000026",
+      "name": "Send Error Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [780, 560]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "⏳ Обробляю домен <b>{{ $json.domain }}</b>...\n\n🔍 Скрапінг сайту...",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000027",
+      "name": "Send Processing Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [780, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.url, formats: ['markdown'], onlyMainContent: true, waitFor: 3000 }) }}",
+        "options": {
+          "timeout": 45000,
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000030",
+      "name": "Firecrawl Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1060, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "FIRECRAWL_CRED_ID",
+          "name": "Firecrawl API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════\n// Prepare LLM Input: clean scraped data + build prompt\n// ═══════════════════════════════════════════\n\nconst firecrawlResponse = $input.item.json;\nconst extractDomain = $('Extract Domain').first().json;\nconst domain = extractDomain.domain;\nconst chatId = extractDomain.chatId;\n\n// Extract markdown content from Firecrawl response\nlet content = '';\n\nif (firecrawlResponse.data && firecrawlResponse.data.markdown) {\n  content = firecrawlResponse.data.markdown;\n} else if (firecrawlResponse.data && firecrawlResponse.data.content) {\n  content = firecrawlResponse.data.content;\n} else if (typeof firecrawlResponse.data === 'string') {\n  content = firecrawlResponse.data;\n} else {\n  content = JSON.stringify(firecrawlResponse.data || firecrawlResponse, null, 2);\n}\n\n// Clean up the content\ncontent = content\n  // Remove excessive whitespace\n  .replace(/\\n{4,}/g, '\\n\\n\\n')\n  // Remove image markdown that adds noise\n  .replace(/!\\[.*?\\]\\(.*?\\)/g, '')\n  // Remove very long URLs\n  .replace(/https?:\\/\\/[^\\s]{200,}/g, '[long-url-removed]')\n  .trim();\n\n// Truncate to avoid token limits (~6000 chars ≈ ~1500 tokens)\nconst MAX_CHARS = 6000;\nif (content.length > MAX_CHARS) {\n  content = content.substring(0, MAX_CHARS) + '\\n\\n[...content truncated for token efficiency...]';\n}\n\n// Check if we got meaningful content\nif (content.length < 50) {\n  content = `Could not extract meaningful content from ${domain}. The website may be JavaScript-heavy or blocking scraping. Please analyze based on the domain name alone: ${domain}`;\n}\n\n// Build the system prompt\nconst systemPrompt = `You are an elite B2B Sales Development Representative (SDR) specializing in the Real Estate industry. You help real estate agencies, property management companies, and construction firms leverage AI-powered automation to grow their business.\n\nTASK: Analyze the following website content and produce a structured analysis + hyper-personalized cold email.\n\n=== ANALYSIS INSTRUCTIONS ===\n1. COMPANY NAME: Extract the official company name from the website content.\n2. INDUSTRY: Categorize precisely (e.g., \"Residential Real Estate Agency\", \"Commercial Property Management\", \"Construction & Development\").\n3. MAIN SERVICE: Identify their primary offering.\n4. PAIN POINT: Based on what you see, infer their biggest operational pain. Common ones:\n   - Slow response time to incoming leads\n   - Manual listing creation and updates\n   - No systematic follow-up with past clients\n   - Time wasted on repetitive client questions\n   - Manual data entry from inquiries\n5. CONTACT EMAIL: Extract any email address found on the page.\n\n=== COLD EMAIL INSTRUCTIONS ===\nWrite a SHORT cold email (max 150 words) with this EXACT structure:\n1. HOOK (1 sentence): A specific, genuine observation about their website or business.\n2. PAIN POINT (1-2 sentences): Address the specific challenge. Use \"I noticed...\" or \"Most agencies like yours spend X hours on...\".\n3. VALUE PROPOSITION (2-3 sentences): How AI automation solves their problem. Include a specific metric.\n4. CTA (1 sentence): Casual ask for a 10-minute call or offer a demo video.\n\n=== STRICT RULES ===\n- NEVER start with \"I hope this email finds you well\"\n- Start directly with company name or specific observation\n- Conversational tone, not corporate\n- ONE pain point only\n- At least ONE specific number/metric in value prop\n- Write email in English\n- Subject line under 50 characters, curiosity-driven\n\n=== OUTPUT FORMAT ===\nRespond in valid JSON:\n{\n  \"company_name\": \"...\",\n  \"industry\": \"...\",\n  \"main_service\": \"...\",\n  \"pain_point\": \"...\",\n  \"contact_email\": \"... or Not found\",\n  \"cold_email_subject\": \"...\",\n  \"cold_email_body\": \"...\"\n}`;\n\nconst userMessage = `Domain: ${domain}\\nURL: https://${domain}\\n\\n=== WEBSITE CONTENT ===\\n${content}`;\n\n// Build the OpenAI request body\nconst requestBody = {\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userMessage }\n  ],\n  temperature: 0.7,\n  max_tokens: 1500,\n  response_format: { type: 'json_object' }\n};\n\nreturn {\n  json: {\n    chatId,\n    domain,\n    contentLength: content.length,\n    requestBody: JSON.stringify(requestBody)\n  }\n};"
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000040",
+      "name": "Prepare LLM Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000050",
+      "name": "OpenAI Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENAI_CRED_ID",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════\n// Parse OpenAI response & format for output\n// ═══════════════════════════════════════════\n\nconst response = $input.item.json;\nconst prevData = $('Prepare LLM Input').first().json;\nconst chatId = prevData.chatId;\nconst domain = prevData.domain;\n\nlet aiData;\n\ntry {\n  const aiContent = response.choices[0].message.content;\n  aiData = JSON.parse(aiContent);\n} catch (e) {\n  // If JSON parsing fails, try to extract what we can\n  aiData = {\n    company_name: domain,\n    industry: 'Unknown',\n    main_service: 'Unknown',\n    pain_point: 'Could not analyze',\n    contact_email: 'Not found',\n    cold_email_subject: 'Error parsing AI response',\n    cold_email_body: `Raw response: ${response.choices?.[0]?.message?.content || 'No content'}`\n  };\n}\n\n// Calculate tokens used (for cost tracking)\nconst tokensUsed = response.usage?.total_tokens || 0;\nconst estimatedCost = (tokensUsed / 1000000 * 5).toFixed(4); // GPT-4o pricing approx\n\n// Format the data for Google Sheets (matching column headers)\nreturn {\n  json: {\n    chatId,\n    domain,\n    // Fields matching Google Sheets columns\n    'Дата': new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' }),\n    'Компанія': aiData.company_name || domain,\n    'Домен': domain,\n    'Сфера': aiData.industry || 'N/A',\n    'Сервіс': aiData.main_service || 'N/A',\n    'Біль': aiData.pain_point || 'N/A',\n    'Email': aiData.contact_email || 'Not found',\n    'Тема': aiData.cold_email_subject || 'N/A',\n    'Лист': aiData.cold_email_body || 'N/A',\n    // Metadata (not written to sheets)\n    _tokensUsed: tokensUsed,\n    _estimatedCost: `$${estimatedCost}`,\n    _emailSubject: aiData.cold_email_subject,\n    _emailBody: aiData.cold_email_body,\n    _painPoint: aiData.pain_point\n  }\n};"
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000060",
+      "name": "Parse & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1900, 280]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Ліди",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            { "id": "Дата", "displayName": "Дата", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Компанія", "displayName": "Компанія", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Домен", "displayName": "Домен", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Сфера", "displayName": "Сфера", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Сервіс", "displayName": "Сервіс", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Біль", "displayName": "Біль", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Тема", "displayName": "Тема", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "Лист", "displayName": "Лист", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000070",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2180, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CRED_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse & Format').first().json.chatId }}",
+        "text": "={{ '✅ Лід оброблено!\\n\\n' + '🏢 <b>' + $('Parse & Format').first().json['Компанія'] + '</b>\\n' + '🌐 ' + $('Parse & Format').first().json['Домен'] + '\\n' + '🏷️ ' + $('Parse & Format').first().json['Сфера'] + '\\n' + '😰 Біль: ' + $('Parse & Format').first().json['Біль'] + '\\n' + '📧 Email: ' + $('Parse & Format').first().json['Email'] + '\\n\\n' + '━━━━━━━━━━━━━━━━━━━━\\n' + '📨 <b>Тема:</b> ' + $('Parse & Format').first().json['Тема'] + '\\n\\n' + $('Parse & Format').first().json['Лист'] + '\\n━━━━━━━━━━━━━━━━━━━━\\n\\n' + '💰 Токени: ' + $('Parse & Format').first().json._tokensUsed + ' (~' + $('Parse & Format').first().json._estimatedCost + ')\\n' + '📊 Збережено в Google Sheets' }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000080",
+      "name": "Send Result to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2460, 280]
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ Credentials Setup\n\n**1. Firecrawl API Key:**\n- Create 'Header Auth' credential\n- Name: `Authorization`\n- Value: `Bearer fc-YOUR_KEY`\n\n**2. OpenAI API Key:**\n- Create 'Header Auth' credential\n- Name: `Authorization`\n- Value: `Bearer sk-YOUR_KEY`\n\n**3. Telegram Bot:**\n- Create Telegram credential\n- Token from @BotFather\n\n**4. Google Sheets:**\n- Create Google Sheets OAuth2\n- Follow n8n docs for setup",
+        "height": 380,
+        "width": 340,
+        "color": 3
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000002",
+      "name": "🔑 Credentials Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [480, -60]
+    },
+    {
+      "parameters": {
+        "content": "## 💡 Webhook Alternative\n\nЩоб додати HTTP Webhook тригер:\n1. Додай ноду 'Webhook'\n2. Method: POST\n3. Path: `/lead-gen`\n4. Підключи до 'Extract Domain'\n5. Body: `{ \"domain\": \"example.com\" }`\n\nТоді можна викликати:\n```\ncurl -X POST https://your-n8n.com/webhook/lead-gen \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"domain\": \"example.com\"}'\n```",
+        "height": 340,
+        "width": 340,
+        "color": 6
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000003",
+      "name": "💡 Webhook Alternative",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [860, -60]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Domain": {
+      "main": [
+        [
+          {
+            "node": "Is Valid Domain?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid Domain?": {
+      "main": [
+        [
+          {
+            "node": "Send Processing Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Processing Message": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Scrape": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Input": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Parse & Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Format": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send Result to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": [
+    {
+      "name": "AI Lead Generation",
+      "createdAt": "2026-05-30T12:00:00.000Z",
+      "updatedAt": "2026-05-30T12:00:00.000Z"
+    },
+    {
+      "name": "Real Estate",
+      "createdAt": "2026-05-30T12:00:00.000Z",
+      "updatedAt": "2026-05-30T12:00:00.000Z"
+    }
+  ]
+}
