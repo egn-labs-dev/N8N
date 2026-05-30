@@ -100,7 +100,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ url: $json.url, formats: ['markdown'], onlyMainContent: true, waitFor: 3000 }) }}",
+        "jsonBody": "={{ JSON.stringify({ url: $('Extract Domain').first().json.url, formats: ['markdown'], onlyMainContent: true, waitFor: 3000 }) }}",
         "options": {
           "timeout": 45000,
           "response": {
