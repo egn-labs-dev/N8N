@@ -12,17 +12,25 @@
       "name": "📋 Instructions",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-80, -60]
+      "position": [
+        -80,
+        -60
+      ]
     },
     {
       "parameters": {
-        "updates": ["message"]
+        "updates": [
+          "message"
+        ]
       },
       "id": "d0a0b1c2-0000-4000-8000-000000000010",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
-      "position": [0, 380],
+      "position": [
+        0,
+        380
+      ],
       "webhookId": "lead-gen-bot-trigger"
     },
     {
@@ -33,7 +41,10 @@
       "name": "Extract Domain",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [280, 380]
+      "position": [
+        280,
+        380
+      ]
     },
     {
       "parameters": {
@@ -62,7 +73,10 @@
       "name": "Is Valid Domain?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [520, 380]
+      "position": [
+        520,
+        380
+      ]
     },
     {
       "parameters": {
@@ -76,7 +90,10 @@
       "name": "Send Error Message",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [780, 560]
+      "position": [
+        780,
+        560
+      ]
     },
     {
       "parameters": {
@@ -90,7 +107,10 @@
       "name": "Send Processing Message",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [780, 280]
+      "position": [
+        780,
+        280
+      ]
     },
     {
       "parameters": {
@@ -114,13 +134,11 @@
       "name": "Firecrawl Scrape",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1060, 280],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "FIRECRAWL_CRED_ID",
-          "name": "Firecrawl API Key"
-        }
-      }
+      "position": [
+        1060,
+        280
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -130,7 +148,10 @@
       "name": "Prepare LLM Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 280]
+      "position": [
+        1340,
+        280
+      ]
     },
     {
       "parameters": {
@@ -154,30 +175,31 @@
       "name": "OpenAI Generate Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1620, 280],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "OPENAI_CRED_ID",
-          "name": "OpenAI API Key"
-        }
-      }
+      "position": [
+        1620,
+        280
+      ],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// ═══════════════════════════════════════════\n// Parse OpenAI response & format for output\n// ═══════════════════════════════════════════\n\nconst response = $input.item.json;\nconst prevData = $('Prepare LLM Input').first().json;\nconst chatId = prevData.chatId;\nconst domain = prevData.domain;\n\nlet aiData;\n\ntry {\n  const aiContent = response.choices[0].message.content;\n  aiData = JSON.parse(aiContent);\n} catch (e) {\n  // If JSON parsing fails, try to extract what we can\n  aiData = {\n    company_name: domain,\n    industry: 'Unknown',\n    main_service: 'Unknown',\n    pain_point: 'Could not analyze',\n    contact_email: 'Not found',\n    cold_email_subject: 'Error parsing AI response',\n    cold_email_body: `Raw response: ${response.choices?.[0]?.message?.content || 'No content'}`\n  };\n}\n\n// Calculate tokens used (for cost tracking)\nconst tokensUsed = response.usage?.total_tokens || 0;\nconst estimatedCost = (tokensUsed / 1000000 * 5).toFixed(4); // GPT-4o pricing approx\n\n// Format the data for Google Sheets (matching column headers)\nreturn {\n  json: {\n    chatId,\n    domain,\n    // Fields matching Google Sheets columns\n    'Дата': new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' }),\n    'Компанія': aiData.company_name || domain,\n    'Домен': domain,\n    'Сфера': aiData.industry || 'N/A',\n    'Сервіс': aiData.main_service || 'N/A',\n    'Біль': aiData.pain_point || 'N/A',\n    'Email': aiData.contact_email || 'Not found',\n    'Тема': aiData.cold_email_subject || 'N/A',\n    'Лист': aiData.cold_email_body || 'N/A',\n    // Metadata (not written to sheets)\n    _tokensUsed: tokensUsed,\n    _estimatedCost: `$${estimatedCost}`,\n    _emailSubject: aiData.cold_email_subject,\n    _emailBody: aiData.cold_email_body,\n    _painPoint: aiData.pain_point\n  }\n};"
+        "jsCode": "// ═══════════════════════════════════════════\n// Parse OpenAI response & format for output\n// ═══════════════════════════════════════════\n\nconst response = $input.item.json;\nconst prevData = $('Prepare LLM Input').first().json;\nconst chatId = prevData.chatId;\nconst domain = prevData.domain;\n\nlet aiData;\n\ntry {\n  const aiContent = response.choices[0].message.content;\n  aiData = JSON.parse(aiContent);\n} catch (e) {\n  // If JSON parsing fails, try to extract what we can\n  aiData = {\n    company_name: domain,\n    industry: 'Unknown',\n    main_service: 'Unknown',\n    pain_point: 'Could not analyze',\n    contact_email: 'Not found',\n    cold_email_subject: 'Error parsing AI response',\n    cold_email_body: `Raw response: ${response.choices?.[0]?.message?.content || 'No content'}`\n  };\n}\n\n// Calculate tokens used (for cost tracking)\nconst promptTokens = response.usage?.prompt_tokens || 0;\nconst completionTokens = response.usage?.completion_tokens || 0;\nconst tokensUsed = response.usage?.total_tokens || 0;\nconst inputCost = (promptTokens / 1000000) * 2.5;\nconst outputCost = (completionTokens / 1000000) * 10;\nconst estimatedCost = (inputCost + outputCost).toFixed(4);\n\n// Format the data for Google Sheets (matching column headers)\nreturn {\n  json: {\n    chatId,\n    domain,\n    // Fields matching Google Sheets columns\n    'Дата': new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' }),\n    'Компанія': aiData.company_name || domain,\n    'Домен': domain,\n    'Сфера': aiData.industry || 'N/A',\n    'Сервіс': aiData.main_service || 'N/A',\n    'Біль': aiData.pain_point || 'N/A',\n    'Email': aiData.contact_email || 'Not found',\n    'Тема': aiData.cold_email_subject || 'N/A',\n    'Лист': aiData.cold_email_body || 'N/A',\n    // Metadata (not written to sheets)\n    _tokensUsed: tokensUsed,\n    _estimatedCost: `$${estimatedCost}`,\n    _emailSubject: aiData.cold_email_subject,\n    _emailBody: aiData.cold_email_body,\n    _painPoint: aiData.pain_point\n  }\n};"
       },
       "id": "d0a0b1c2-0000-4000-8000-000000000060",
       "name": "Parse & Format",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1900, 280]
+      "position": [
+        1900,
+        280
+      ]
     },
     {
       "parameters": {
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID",
+          "value": "",
           "mode": "id"
         },
         "sheetName": {
@@ -190,15 +212,105 @@
           "value": {},
           "matchingColumns": [],
           "schema": [
-            { "id": "Дата", "displayName": "Дата", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Компанія", "displayName": "Компанія", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Домен", "displayName": "Домен", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Сфера", "displayName": "Сфера", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Сервіс", "displayName": "Сервіс", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Біль", "displayName": "Біль", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Email", "displayName": "Email", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Тема", "displayName": "Тема", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "Лист", "displayName": "Лист", "required": false, "defaultMatch": false, "canBeUsedToMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+            {
+              "id": "Дата",
+              "displayName": "Дата",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Компанія",
+              "displayName": "Компанія",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Домен",
+              "displayName": "Домен",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Сфера",
+              "displayName": "Сфера",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Сервіс",
+              "displayName": "Сервіс",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Біль",
+              "displayName": "Біль",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Тема",
+              "displayName": "Тема",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Лист",
+              "displayName": "Лист",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
           ]
         },
         "options": {}
@@ -207,13 +319,10 @@
       "name": "Save to Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2180, 280],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CRED_ID",
-          "name": "Google Sheets Account"
-        }
-      }
+      "position": [
+        2180,
+        280
+      ]
     },
     {
       "parameters": {
@@ -227,7 +336,10 @@
       "name": "Send Result to Telegram",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2460, 280]
+      "position": [
+        2460,
+        280
+      ]
     },
     {
       "parameters": {
@@ -240,7 +352,10 @@
       "name": "🔑 Credentials Setup",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [480, -60]
+      "position": [
+        480,
+        -60
+      ]
     },
     {
       "parameters": {
@@ -253,7 +368,40 @@
       "name": "💡 Webhook Alternative",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [860, -60]
+      "position": [
+        860,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error message for Telegram notification\nconst extractDomain = $('Extract Domain').first().json;\nconst chatId = extractDomain.chatId;\nconst domain = extractDomain.domain;\nconst errorData = $input.item.json;\n\nlet errorMsg = '';\nif (errorData.error) {\n  errorMsg = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);\n} else if (errorData.message) {\n  errorMsg = errorData.message;\n} else {\n  errorMsg = JSON.stringify(errorData).substring(0, 300);\n}\n\nreturn {\n  json: {\n    chatId,\n    errorText: '❌ Помилка при обробці <b>' + domain + '</b>:\\n\\n' + errorMsg + '\\n\\n💡 Перевірте домен та спробуйте ще раз.'\n  }\n};"
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000090",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.errorText }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "d0a0b1c2-0000-4000-8000-000000000091",
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        560
+      ]
     }
   ],
   "connections": {
@@ -316,6 +464,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -338,6 +493,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -357,6 +519,17 @@
         [
           {
             "node": "Send Result to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Send Error Notification",
             "type": "main",
             "index": 0
           }
